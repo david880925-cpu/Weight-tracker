@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>體重管理</title>
+<style>
+  :root {
+    --bg: #F1F4EF;
+    --surface: #FFFFFF;
+    --ink: #1E2A22;
+    --muted: #6E7C72;
+    --line: #E4E8E1;
+    --accent: #2F6F62;
+    --accent-soft: #DCEAE5;
+    --warm: #C99A3E;
+    --danger: #B9563F;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  }
+  #app {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 20px 16px 40px;
+  }
+  .hero-num {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: 52px;
+    font-weight: 600;
+    line-height: 1;
+  }
+  .hero-unit { font-size: 18px; color: var(--muted); margin-left: 8px; }
+  .hero-sub { margin-top: 6px; font-size: 14px; color: var(--muted); }
+  .tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--line); margin: 18px 0 20px; }
+  .tab-btn {
+    background: none; border: none; padding: 8px 2px 12px; font-size: 15px;
+    color: var(--muted); border-bottom: 2px solid transparent; cursor: pointer;
+  }
+  .tab-btn.active { color: var(--ink); font-weight: 600; border-bottom-color: var(--accent); }
+  .card { background: var(--surface); border-radius: 10px; padding: 14px 16px; }
+  .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 16px; }
+  .stat-label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .stat-value { font-size: 22px; font-weight: 600; }
+  .stat-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .goal-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 13px; }
+  .goal-input { width: 56px; margin: 0 4px; border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; font-size: 13px; text-align: center; flex: 0 0 auto; }
+  .progress-track { height: 10px; background: var(--line); border-radius: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--warm); border-radius: 6px; transition: width .4s ease; }
+  .progress-labels { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .chart-card { padding: 16px 8px 8px; margin-top: 16px; }
+  .chart-hint { font-size: 13px; color: var(--muted); margin-bottom: 4px; padding-left: 8px; }
+  .chip-row { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 8px 10px; }
+  .chip {
+    border: 1px solid var(--line); background: transparent; color: var(--muted);
+    border-radius: 999px; padding: 4px 12px; font-size: 12px; cursor: pointer;
+  }
+  .chip.active { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+  .detail-box {
+    margin: 8px 8px 4px; padding: 10px 12px; background: var(--accent-soft); border-radius: 8px;
+    font-size: 13px; display: flex; justify-content: space-between;
+  }
+  .week-row { margin-bottom: 14px; }
+  .week-head { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 4px; }
+  .week-bar-track { height: 8px; background: var(--line); border-radius: 5px; overflow: hidden; }
+  .week-bar-fill { height: 100%; border-radius: 5px; }
+  label.field-label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; }
+  input[type="date"], input[type="number"]:not(.goal-input) {
+    width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); font-size: 15px;
+  }
+  .primary-btn {
+    width: 100%; padding: 12px; background: var(--accent); color: #fff; border: none;
+    border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; margin-top: 4px;
+  }
+  .status-msg { margin-top: 10px; font-size: 13px; color: var(--accent); }
+  .history-row {
+    display: flex; justify-content: space-between; align-items: center; padding: 10px 12px;
+    border-bottom: 1px solid var(--line); font-size: 14px;
+  }
+  .history-row:last-child { border-bottom: none; }
+  .del-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; }
+  svg text { font-size: 11px; fill: var(--muted); }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+(function () {
+  var HEIGHT_CM = 176;
+  var DEFAULT_GOAL = 78;
+  var SEED_ENTRIES = [
+    { date: "2026-08-05", weight: 93.7 },
+    { date: "2026-08-10", weight: 92.6 },
+    { date: "2026-08-12", weight: 91.6 },
+    { date: "2026-08-14", weight: 91.7 },
+    { date: "2026-08-18", weight: 90.9 },
+    { date: "2026-08-19", weight: 90.5 },
+    { date: "2026-08-21", weight: 90.2 },
+    { date: "2026-08-27", weight: 89.3 },
+    { date: "2026-08-28", weight: 89.5 },
+    { date: "2026-08-31", weight: 88.5 },
+    { date: "2026-09-01", weight: 88.7 },
+    { date: "2026-09-04", weight: 88.3 },
+    { date: "2026-09-07", weight: 88.0 },
+    { date: "2026-09-08", weight: 87.2 },
+    { date: "2026-09-09", weight: 87.1 }
+  ];
+
+  var STORE_ENTRIES = "weight-tracker:entries";
+  var STORE_GOAL = "weight-tracker:goal";
+
+  function loadEntries() {
+    try {
+      var raw = localStorage.getItem(STORE_ENTRIES);
+      return raw ? JSON.parse(raw) : SEED_ENTRIES.slice();
+    } catch (e) { return SEED_ENTRIES.slice(); }
+  }
+  function saveEntries(entries) {
+    try { localStorage.setItem(STORE_ENTRIES, JSON.stringify(entries)); } catch (e) {}
+  }
+  function loadGoal() {
+    try {
+      var raw = localStorage.getItem(STORE_GOAL);
+      return raw ? JSON.parse(raw) : DEFAULT_GOAL;
+    } catch (e) { return DEFAULT_GOAL; }
+  }
+  function saveGoal(g) {
+    try { localStorage.setItem(STORE_GOAL, JSON.stringify(g)); } catch (e) {}
+  }
+
+  function bmiOf(w) { var h = HEIGHT_CM / 100; return w / (h * h); }
+  function fmtDate(iso) { var p = iso.split("-"); return parseInt(p[1], 10) + "/" + parseInt(p[2], 10); }
+  function tsLabel(ts) { var d = new Date(ts); return (d.getMonth() + 1) + "/" + d.getDate(); }
+  function toISO(ms) {
+    var d = new Date(ms);
+    var m = String(d.getMonth() + 1).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    return d.getFullYear() + "-" + m + "-" + day;
+  }
+  function todayISO() { return toISO(Date.now()); }
+
+  function interpolateWeight(sorted, targetDate) {
+    var t = new Date(targetDate).getTime();
+    var firstT = new Date(sorted[0].date).getTime();
+    var lastT = new Date(sorted[sorted.length - 1].date).getTime();
+    if (t <= firstT) return sorted[0].weight;
+    if (t >= lastT) return sorted[sorted.length - 1].weight;
+    for (var i = 0; i < sorted.length - 1; i++) {
+      var t1 = new Date(sorted[i].date).getTime();
+      var t2 = new Date(sorted[i + 1].date).getTime();
+      if (t >= t1 && t <= t2) {
+        var ratio = t2 === t1 ? 0 : (t - t1) / (t2 - t1);
+        return sorted[i].weight + (sorted[i + 1].weight - sorted[i].weight) * ratio;
+      }
+    }
+    return sorted[sorted.length - 1].weight;
+  }
+
+  function computeWeeklyLoss(sorted) {
+    if (!sorted || sorted.length < 2) return [];
+    var startTime = new Date(sorted[0].date).getTime();
+    var lastTime = new Date(sorted[sorted.length - 1].date).getTime();
+    var totalDays = Math.round((lastTime - startTime) / 86400000);
+    var weekCount = Math.max(1, Math.ceil(totalDays / 7));
+    var weeks = [];
+    var prevWeight = sorted[0].weight;
+    for (var i = 1; i <= weekCount; i++) {
+      var boundaryTime = startTime + i * 7 * 86400000;
+      var boundaryDate = boundaryTime >= lastTime ? sorted[sorted.length - 1].date : toISO(boundaryTime);
+      var weight = interpolateWeight(sorted, boundaryDate);
+      var rangeStart = toISO(startTime + (i - 1) * 7 * 86400000);
+      weeks.push({
+        label: "W" + i,
+        rangeStart: rangeStart,
+        rangeEnd: boundaryDate,
+        weight: Math.round(weight * 10) / 10,
+        loss: Math.round((prevWeight - weight) * 10) / 10
+      });
+      prevWeight = weight;
+    }
+    return weeks;
+  }
+
+  // ---- state ----
+  var state = {
+    entries: loadEntries(),
+    goal: loadGoal(),
+    view: "dashboard",
+    selectedMonth: "all",
+    selectedPoint: null,
+    dateInput: todayISO(),
+    weightInput: "",
+    status: ""
+  };
+
+  function sortedEntries() {
+    return state.entries.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+  }
+
+  function el(tag, attrs, children) {
+    var e = document.createElement(tag);
+    attrs = attrs || {};
+    Object.keys(attrs).forEach(function (k) {
+      if (k === "class") e.className = attrs[k];
+      else if (k === "style") e.setAttribute("style", attrs[k]);
+      else if (k.indexOf("on") === 0) e.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
+      else e.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function (c) {
+      if (c == null) return;
+      e.appendChild(typeof c === "string" ? document.createTextNode(c) : c);
+    });
+    return e;
+  }
+
+  function render() {
+    var root = document.getElementById("app");
+    root.innerHTML = "";
+
+    var sorted = sortedEntries();
+    var first = sorted[0];
+    var latest = sorted[sorted.length - 1];
+    var prev = sorted.length > 1 ? sorted[sorted.length - 2] : null;
+    var lost = first && latest ? first.weight - latest.weight : 0;
+    var lostPct = first && first.weight ? (lost / first.weight) * 100 : 0;
+    var deltaFromPrev = prev && latest ? latest.weight - prev.weight : 0;
+
+    // Hero
+    var hero = el("div", { style: "margin-bottom:4px;" }, [
+      el("span", { class: "hero-num" }, [latest ? latest.weight.toFixed(1) : "--"]),
+      el("span", { class: "hero-unit" }, ["kg"])
+    ]);
+    var heroSub = el("div", { class: "hero-sub" }, [
+      latest ? fmtDate(latest.date) + " 記錄" : "尚無資料",
+      prev ? el("span", {
+        style: "margin-left:8px;color:" + (deltaFromPrev <= 0 ? "var(--accent)" : "var(--danger)")
+      }, [
+        deltaFromPrev === 0 ? "與上次持平" : ((deltaFromPrev < 0 ? "↓ " : "↑ ") + Math.abs(deltaFromPrev).toFixed(1) + " kg 較上次")
+      ]) : null
+    ]);
+    root.appendChild(hero);
+    root.appendChild(heroSub);
+
+    // Tabs
+    var tabsWrap = el("div", { class: "tabs" });
+    [["dashboard", "趨勢"], ["weekly", "每週摘要"], ["input", "記錄體重"]].forEach(function (t) {
+      var btn = el("button", {
+        class: "tab-btn" + (state.view === t[0] ? " active" : ""),
+        onClick: function () { state.view = t[0]; render(); }
+      }, [t[1]]);
+      tabsWrap.appendChild(btn);
+    });
+    root.appendChild(tabsWrap);
+
+    if (state.view === "dashboard") root.appendChild(renderDashboard(sorted, first, latest, lost, lostPct));
+    else if (state.view === "weekly") root.appendChild(renderWeekly(sorted));
+    else root.appendChild(renderInput(sorted));
+  }
+
+  function renderDashboard(sorted, first, latest, lost, lostPct) {
+    var wrap = document.createDocumentFragment ? el("div") : el("div");
+
+    // stat cards
+    var statGrid = el("div", { class: "stat-grid" }, [
+      el("div", { class: "card" }, [
+        el("div", { class: "stat-label" }, ["已甩肉"]),
+        el("div", { class: "stat-value", style: "color:var(--accent);" }, [lost.toFixed(1) + " kg"]),
+        el("div", { class: "stat-sub" }, ["占初始體重 " + lostPct.toFixed(1) + "%"])
+      ]),
+      el("div", { class: "card" }, [
+        el("div", { class: "stat-label" }, ["目前 BMI"]),
+        el("div", { class: "stat-value" }, [latest ? bmiOf(latest.weight).toFixed(1) : "--"]),
+        el("div", { class: "stat-sub" }, ["身高 " + HEIGHT_CM + " cm"])
+      ])
+    ]);
+    wrap.appendChild(statGrid);
+
+    // goal progress
+    var goalRange = first ? first.weight - state.goal : 0;
+    var goalProgress = goalRange > 0 ? Math.max(0, Math.min(100, (lost / goalRange) * 100)) : 0;
+    var remaining = latest ? Math.max(0, latest.weight - state.goal) : 0;
+
+    var goalInput = el("input", { class: "goal-input", type: "number", value: state.goal });
+    goalInput.addEventListener("change", function (e) {
+      var g = parseFloat(e.target.value) || 0;
+      state.goal = g;
+      saveGoal(g);
+      render();
+    });
+    var goalCard = el("div", { class: "card", style: "margin-bottom:16px;" }, [
+      el("div", { class: "goal-row" }, [
+        el("span", { style: "color:var(--muted);" }, ["減重目標"]),
+        el("span", {}, ["目標", goalInput, "kg"])
+      ]),
+      el("div", { class: "progress-track" }, [
+        el("div", { class: "progress-fill", style: "width:" + goalProgress + "%;" })
+      ]),
+      el("div", { class: "progress-labels" }, [
+        el("span", {}, [goalProgress.toFixed(0) + "% 達成"]),
+        el("span", {}, ["還差 " + remaining.toFixed(1) + " kg"])
+      ])
+    ]);
+    wrap.appendChild(goalCard);
+
+    // month chips
+    var months = [];
+    sorted.forEach(function (e) {
+      var ym = e.date.slice(0, 7);
+      if (months.indexOf(ym) === -1) months.push(ym);
+    });
+    months.sort();
+
+    var chartEntries = state.selectedMonth === "all"
+      ? sorted
+      : sorted.filter(function (e) { return e.date.indexOf(state.selectedMonth) === 0; });
+
+    var chipRow = el("div", { class: "chip-row" });
+    var allChip = el("button", {
+      class: "chip" + (state.selectedMonth === "all" ? " active" : ""),
+      onClick: function () { state.selectedMonth = "all"; state.selectedPoint = null; render(); }
+    }, ["全部"]);
+    chipRow.appendChild(allChip);
+    months.forEach(function (ym) {
+      var mNum = parseInt(ym.split("-")[1], 10);
+      var chip = el("button", {
+        class: "chip" + (state.selectedMonth === ym ? " active" : ""),
+        onClick: function () { state.selectedMonth = ym; state.selectedPoint = null; render(); }
+      }, [mNum + "月"]);
+      chipRow.appendChild(chip);
+    });
+
+    var chartCard = el("div", { class: "card chart-card" });
+    chartCard.appendChild(el("div", { class: "chart-hint" }, ["點選圖上的點可查看該日體重"]));
+    chartCard.appendChild(chipRow);
+    chartCard.appendChild(renderChart(chartEntries, state.goal));
+
+    if (state.selectedPoint) {
+      var sp = state.selectedPoint;
+      chartCard.appendChild(el("div", { class: "detail-box" }, [
+        el("span", {}, [sp.date.replace(/-/g, "/")]),
+        el("span", { style: "font-weight:600;" }, [sp.weight.toFixed(1) + " kg · BMI " + bmiOf(sp.weight).toFixed(1)])
+      ]));
+    }
+    wrap.appendChild(chartCard);
+    return wrap;
+  }
+
+  function monotonePath(points) {
+    var n = points.length;
+    if (n < 2) return "";
+    if (n === 2) {
+      return "M" + points[0].x.toFixed(1) + "," + points[0].y.toFixed(1) + " L" + points[1].x.toFixed(1) + "," + points[1].y.toFixed(1);
+    }
+    var dx = [], slope = [];
+    for (var i = 0; i < n - 1; i++) {
+      dx[i] = points[i + 1].x - points[i].x;
+      slope[i] = (points[i + 1].y - points[i].y) / dx[i];
+    }
+    var m = new Array(n);
+    m[0] = slope[0];
+    m[n - 1] = slope[n - 2];
+    for (var i = 1; i < n - 1; i++) {
+      if (slope[i - 1] * slope[i] <= 0) {
+        m[i] = 0;
+      } else {
+        m[i] = (slope[i - 1] + slope[i]) / 2;
+      }
+    }
+    for (var i = 0; i < n - 1; i++) {
+      if (slope[i] === 0) {
+        m[i] = 0; m[i + 1] = 0;
+      } else {
+        var a = m[i] / slope[i];
+        var b = m[i + 1] / slope[i];
+        var h = Math.sqrt(a * a + b * b);
+        if (h > 3) {
+          var t = 3 / h;
+          m[i] = t * a * slope[i];
+          m[i + 1] = t * b * slope[i];
+        }
+      }
+    }
+    var d = "M" + points[0].x.toFixed(1) + "," + points[0].y.toFixed(1) + " ";
+    for (var i = 0; i < n - 1; i++) {
+      var p0 = points[i], p1 = points[i + 1];
+      var cp1x = p0.x + dx[i] / 3;
+      var cp1y = p0.y + (m[i] * dx[i]) / 3;
+      var cp2x = p1.x - dx[i] / 3;
+      var cp2y = p1.y - (m[i + 1] * dx[i]) / 3;
+      d += "C" + cp1x.toFixed(1) + "," + cp1y.toFixed(1) + " " + cp2x.toFixed(1) + "," + cp2y.toFixed(1) + " " + p1.x.toFixed(1) + "," + p1.y.toFixed(1) + " ";
+    }
+    return d;
+  }
+
+  function renderChart(entries, goal) {
+    var W = 320, H = 200, padL = 34, padR = 10, padT = 10, padB = 24;
+    var innerW = W - padL - padR, innerH = H - padT - padB;
+
+    var svgWrap = el("div", { style: "width:100%;" });
+    var svgns = "http://www.w3.org/2000/svg";
+    var svg = document.createElementNS(svgns, "svg");
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.setAttribute("width", "100%");
+    svg.setAttribute("style", "display:block;");
+
+    if (!entries || entries.length === 0) {
+      var t = document.createElementNS(svgns, "text");
+      t.setAttribute("x", W / 2); t.setAttribute("y", H / 2); t.setAttribute("text-anchor", "middle");
+      t.textContent = "尚無資料";
+      svg.appendChild(t);
+      svgWrap.appendChild(svg);
+      return svgWrap;
+    }
+
+    var pts = entries.map(function (e) { return { date: e.date, weight: e.weight, ts: new Date(e.date).getTime() }; });
+    var minTs = pts[0].ts, maxTs = pts[pts.length - 1].ts;
+    var tsRange = Math.max(1, maxTs - minTs);
+    var weights = pts.map(function (p) { return p.weight; });
+    var minW = Math.min.apply(null, weights) - 1;
+    var maxW = Math.max.apply(null, weights) + 1;
+    var wRange = Math.max(0.1, maxW - minW);
+
+    function x(ts) { return padL + ((ts - minTs) / tsRange) * innerW; }
+    function y(w) { return padT + (1 - (w - minW) / wRange) * innerH; }
+
+    // gridlines (3 horizontal)
+    for (var g = 0; g <= 2; g++) {
+      var gw = minW + (wRange * g / 2);
+      var gy = y(gw);
+      var line = document.createElementNS(svgns, "line");
+      line.setAttribute("x1", padL); line.setAttribute("x2", W - padR);
+      line.setAttribute("y1", gy); line.setAttribute("y2", gy);
+      line.setAttribute("stroke", "#E4E8E1"); line.setAttribute("stroke-width", "1");
+      svg.appendChild(line);
+      var lbl = document.createElementNS(svgns, "text");
+      lbl.setAttribute("x", padL - 6); lbl.setAttribute("y", gy + 3); lbl.setAttribute("text-anchor", "end");
+      lbl.textContent = gw.toFixed(0);
+      svg.appendChild(lbl);
+    }
+
+    // goal reference line
+    if (goal && goal >= minW && goal <= maxW) {
+      var gy2 = y(goal);
+      var gline = document.createElementNS(svgns, "line");
+      gline.setAttribute("x1", padL); gline.setAttribute("x2", W - padR);
+      gline.setAttribute("y1", gy2); gline.setAttribute("y2", gy2);
+      gline.setAttribute("stroke", "#C99A3E"); gline.setAttribute("stroke-width", "1.5");
+      gline.setAttribute("stroke-dasharray", "4 4"); gline.setAttribute("opacity", "0.7");
+      svg.appendChild(gline);
+    }
+
+    // path — monotone cubic interpolation (same algorithm recharts uses for type="monotone")
+    var coords = pts.map(function (p) { return { x: x(p.ts), y: y(p.weight) }; });
+    var d = monotonePath(coords);
+    var path = document.createElementNS(svgns, "path");
+    path.setAttribute("d", d);
+    path.setAttribute("fill", "none");
+    path.setAttribute("stroke", "#2F6F62");
+    path.setAttribute("stroke-width", "2.5");
+    path.setAttribute("stroke-linecap", "round");
+    path.setAttribute("stroke-linejoin", "round");
+    svg.appendChild(path);
+
+    // x-axis labels: thin out if many points
+    var labelEvery = Math.max(1, Math.ceil(pts.length / 6));
+    pts.forEach(function (p, i) {
+      if (i % labelEvery === 0 || i === pts.length - 1) {
+        var lbl2 = document.createElementNS(svgns, "text");
+        lbl2.setAttribute("x", x(p.ts)); lbl2.setAttribute("y", H - 6); lbl2.setAttribute("text-anchor", "middle");
+        lbl2.textContent = tsLabel(p.ts);
+        svg.appendChild(lbl2);
+      }
+    });
+
+    // dots
+    pts.forEach(function (p) {
+      var isActive = state.selectedPoint && state.selectedPoint.date === p.date;
+      var circle = document.createElementNS(svgns, "circle");
+      circle.setAttribute("cx", x(p.ts)); circle.setAttribute("cy", y(p.weight));
+      circle.setAttribute("r", isActive ? 6 : 4);
+      circle.setAttribute("fill", isActive ? "#C99A3E" : "#2F6F62");
+      circle.setAttribute("stroke", "#fff"); circle.setAttribute("stroke-width", "2");
+      circle.style.cursor = "pointer";
+      circle.addEventListener("click", function () {
+        state.selectedPoint = p;
+        render();
+      });
+      svg.appendChild(circle);
+    });
+
+    svgWrap.appendChild(svg);
+    return svgWrap;
+  }
+
+  function renderWeekly(sorted) {
+    var weekly = computeWeeklyLoss(sorted);
+    var maxAbs = Math.max(1, Math.max.apply(null, weekly.map(function (w) { return Math.abs(w.loss); }).concat([0])));
+    var card = el("div", { class: "card" });
+    card.appendChild(el("div", { style: "font-size:13px;color:var(--muted);margin-bottom:14px;" },
+      ["以第一筆紀錄為起點，每滿 7 天算一週；若當天沒有實際量測，會用前後兩筆紀錄線性推算週末體重，確保每週區間長度一致"]));
+    if (weekly.length === 0) {
+      card.appendChild(el("div", { style: "font-size:13px;color:var(--muted);" }, ["尚無足夠資料"]));
+    }
+    weekly.forEach(function (w) {
+      var isLoss = w.loss >= 0;
+      var barWidth = Math.max(3, (Math.abs(w.loss) / maxAbs) * 100);
+      var row = el("div", { class: "week-row" }, [
+        el("div", { class: "week-head" }, [
+          el("span", { style: "font-weight:600;" }, [
+            w.label + " ",
+            el("span", { style: "color:var(--muted);font-weight:400;" }, ["(" + fmtDate(w.rangeStart) + "–" + fmtDate(w.rangeEnd) + ")"])
+          ]),
+          el("span", { style: "font-weight:600;color:" + (isLoss ? "var(--accent)" : "var(--danger)") },
+            [(isLoss ? "-" : "+") + Math.abs(w.loss).toFixed(1) + " kg"])
+        ]),
+        el("div", { class: "week-bar-track" }, [
+          el("div", { class: "week-bar-fill", style: "width:" + barWidth + "%;background:" + (isLoss ? "var(--accent)" : "var(--danger)") + ";" })
+        ])
+      ]);
+      card.appendChild(row);
+    });
+    return card;
+  }
+
+  function toCSV(entries) {
+    var rows = [["日期", "體重(kg)", "BMI"]];
+    entries.forEach(function (e) {
+      rows.push([e.date, e.weight.toFixed(1), bmiOf(e.weight).toFixed(1)]);
+    });
+    return rows.map(function (r) { return r.join(","); }).join("\n");
+  }
+
+  function exportCSV(entries) {
+    var csv = "\uFEFF" + toCSV(entries);
+    var blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "體重紀錄_" + todayISO() + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function renderInput(sorted) {
+    var wrap = el("div");
+    var dateField = el("input", { type: "date", value: state.dateInput });
+    dateField.addEventListener("input", function (e) { state.dateInput = e.target.value; });
+    var weightField = el("input", { type: "number", step: "0.1", placeholder: "例如 86.5", value: state.weightInput });
+    var bmiPreview = el("div", { style: "font-size:12px;color:var(--muted);margin-bottom:12px;" });
+    function updateBmiPreview() {
+      var w = parseFloat(weightField.value);
+      bmiPreview.textContent = !isNaN(w) && w > 0 ? "換算 BMI：" + bmiOf(w).toFixed(1) : "";
+    }
+    weightField.addEventListener("input", function (e) { state.weightInput = e.target.value; updateBmiPreview(); });
+    updateBmiPreview();
+
+    var statusEl = el("div", { class: "status-msg" }, [state.status]);
+
+    var saveBtn = el("button", { class: "primary-btn" }, ["儲存紀錄"]);
+    saveBtn.addEventListener("click", function () {
+      var w = parseFloat(weightField.value);
+      var d = dateField.value;
+      if (!d || isNaN(w) || w <= 0) {
+        state.status = "請輸入日期與有效體重";
+        render();
+        return;
+      }
+      var next = sorted.filter(function (e) { return e.date !== d; });
+      next.push({ date: d, weight: w });
+      state.entries = next;
+      saveEntries(next);
+      state.weightInput = "";
+      state.status = "已記錄 " + fmtDate(d) + "：" + w + " kg";
+      render();
+    });
+
+    var formCard = el("div", { class: "card", style: "margin-bottom:16px;" }, [
+      el("div", { style: "margin-bottom:12px;" }, [el("label", { class: "field-label" }, ["日期"]), dateField]),
+      el("div", { style: "margin-bottom:12px;" }, [el("label", { class: "field-label" }, ["體重 (kg)"]), weightField]),
+      bmiPreview,
+      saveBtn,
+      state.status ? statusEl : null
+    ]);
+    wrap.appendChild(formCard);
+
+    var historyCard = el("div", { class: "card", style: "padding:8px 4px;" });
+    sorted.slice().reverse().forEach(function (e) {
+      var delBtn = el("button", { class: "del-btn" }, ["刪除"]);
+      delBtn.addEventListener("click", function () {
+        state.entries = sorted.filter(function (x) { return x.date !== e.date; });
+        saveEntries(state.entries);
+        render();
+      });
+      historyCard.appendChild(el("div", { class: "history-row" }, [
+        el("span", { style: "color:var(--muted);" }, [e.date.replace(/-/g, "/")]),
+        el("span", { style: "font-weight:500;" }, [e.weight.toFixed(1) + " kg"]),
+        delBtn
+      ]));
+    });
+    wrap.appendChild(historyCard);
+
+    var exportBtn = el("button", {
+      class: "primary-btn",
+      style: "background:var(--surface);color:var(--accent);border:1px solid var(--accent);margin-top:12px;"
+    }, ["匯出 CSV 備份"]);
+    exportBtn.addEventListener("click", function () { exportCSV(sorted); });
+    wrap.appendChild(exportBtn);
+
+    return wrap;
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
