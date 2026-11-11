@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232F6F62'/%3E%3Ctext x='50' y='64' font-size='42' font-family='Georgia,serif' font-weight='700' fill='%23ffffff' text-anchor='middle'%3Ekg%3C/text%3E%3C/svg%3E" />
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%232F6F62'/%3E%3Ctext x='50' y='64' font-size='42' font-family='Georgia,serif' font-weight='700' fill='%23ffffff' text-anchor='middle'%3Ekg%3C/text%3E%3C/svg%3E" />
 <title>體重管理</title>
 <style>
   :root {
@@ -194,8 +196,18 @@
     selectedPoint: null,
     dateInput: todayISO(),
     weightInput: "",
+    fatInput: "",
+    muscleInput: "",
+    metric: "weight",
     status: ""
   };
+
+  var METRICS = {
+    weight: { label: "體重", unit: "kg", dec: 1, color: "#2F6F62" },
+    bodyFat: { label: "體脂率", unit: "%", dec: 1, color: "#C99A3E" },
+    muscle: { label: "骨骼肌", unit: "kg", dec: 1, color: "#4A7FB0" }
+  };
+  function hasVal(v) { return typeof v === "number" && !isNaN(v); }
 
   function sortedEntries() {
     return state.entries.slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; });
@@ -247,7 +259,7 @@
 
     // Tabs
     var tabsWrap = el("div", { class: "tabs" });
-    [["dashboard", "趨勢"], ["weekly", "每週摘要"], ["input", "記錄體重"]].forEach(function (t) {
+    [["dashboard", "趨勢"], ["weekly", "每週摘要"], ["input", "每日記錄"]].forEach(function (t) {
       var btn = el("button", {
         class: "tab-btn" + (state.view === t[0] ? " active" : ""),
         onClick: function () { state.view = t[0]; render(); }
@@ -265,6 +277,16 @@
     var wrap = document.createDocumentFragment ? el("div") : el("div");
 
     // stat cards
+    var M = METRICS[state.metric];
+    var switcher = el("div", { class: "chip-row", style: "margin-bottom:12px;" });
+    Object.keys(METRICS).forEach(function (k) {
+      switcher.appendChild(el("button", {
+        class: "chip" + (state.metric === k ? " active" : ""),
+        onClick: function () { state.metric = k; state.selectedPoint = null; render(); }
+      }, [METRICS[k].label]));
+    });
+    wrap.appendChild(switcher);
+
     var statGrid = el("div", { class: "stat-grid" }, [
       el("div", { class: "card" }, [
         el("div", { class: "stat-label" }, ["已甩肉"]),
@@ -277,7 +299,24 @@
         el("div", { class: "stat-sub" }, ["身高 " + HEIGHT_CM + " cm"])
       ])
     ]);
-    wrap.appendChild(statGrid);
+    if (state.metric === "weight") wrap.appendChild(statGrid);
+    else {
+      var vals = sorted.filter(function (e) { return hasVal(e[state.metric]); });
+      var fv = vals[0], lv = vals[vals.length - 1];
+      var diff = fv && lv ? lv[state.metric] - fv[state.metric] : 0;
+      wrap.appendChild(el("div", { class: "stat-grid" }, [
+        el("div", { class: "card" }, [
+          el("div", { class: "stat-label" }, ["最新" + M.label]),
+          el("div", { class: "stat-value" }, [lv ? lv[state.metric].toFixed(M.dec) + " " + M.unit : "--"]),
+          el("div", { class: "stat-sub" }, [lv ? fmtDate(lv.date) + " 記錄" : "尚無資料"])
+        ]),
+        el("div", { class: "card" }, [
+          el("div", { class: "stat-label" }, ["累計變化"]),
+          el("div", { class: "stat-value", style: "color:var(--accent);" }, [(diff > 0 ? "+" : diff < 0 ? "-" : "") + Math.abs(diff).toFixed(M.dec) + " " + M.unit]),
+          el("div", { class: "stat-sub" }, [fv ? "自 " + fmtDate(fv.date) + " 起" : ""])
+        ])
+      ]));
+    }
 
     // goal progress
     var goalRange = first ? first.weight - state.goal : 0;
@@ -304,7 +343,7 @@
         el("span", {}, ["還差 " + remaining.toFixed(1) + " kg"])
       ])
     ]);
-    wrap.appendChild(goalCard);
+    if (state.metric === "weight") wrap.appendChild(goalCard);
 
     // month chips
     var months = [];
@@ -314,9 +353,10 @@
     });
     months.sort();
 
-    var chartEntries = state.selectedMonth === "all"
+    var chartEntries = (state.selectedMonth === "all"
       ? sorted
-      : sorted.filter(function (e) { return e.date.indexOf(state.selectedMonth) === 0; });
+      : sorted.filter(function (e) { return e.date.indexOf(state.selectedMonth) === 0; }))
+      .filter(function (e) { return hasVal(e[state.metric]); });
 
     var chipRow = el("div", { class: "chip-row" });
     var allChip = el("button", {
@@ -334,15 +374,15 @@
     });
 
     var chartCard = el("div", { class: "card chart-card" });
-    chartCard.appendChild(el("div", { class: "chart-hint" }, ["點選圖上的點可查看該日體重"]));
+    chartCard.appendChild(el("div", { class: "chart-hint" }, ["點選圖上的點可查看該日" + M.label]));
     chartCard.appendChild(chipRow);
-    chartCard.appendChild(renderChart(chartEntries, state.goal));
+    chartCard.appendChild(renderChart(chartEntries, state.metric === "weight" ? state.goal : null, state.metric));
 
     if (state.selectedPoint) {
       var sp = state.selectedPoint;
       chartCard.appendChild(el("div", { class: "detail-box" }, [
         el("span", {}, [sp.date.replace(/-/g, "/")]),
-        el("span", { style: "font-weight:600;" }, [sp.weight.toFixed(1) + " kg · BMI " + bmiOf(sp.weight).toFixed(1)])
+        el("span", { style: "font-weight:600;" }, [sp.value.toFixed(M.dec) + " " + M.unit + (state.metric === "weight" ? " · BMI " + bmiOf(sp.value).toFixed(1) : "")])
       ]));
     }
     wrap.appendChild(chartCard);
@@ -396,7 +436,8 @@
     return d;
   }
 
-  function renderChart(entries, goal) {
+  function renderChart(entries, goal, metric) {
+    var MM = METRICS[metric];
     var W = 320, H = 200, padL = 34, padR = 10, padT = 10, padB = 24;
     var innerW = W - padL - padR, innerH = H - padT - padB;
 
@@ -416,7 +457,7 @@
       return svgWrap;
     }
 
-    var pts = entries.map(function (e) { return { date: e.date, weight: e.weight, ts: new Date(e.date).getTime() }; });
+    var pts = entries.map(function (e) { return { date: e.date, weight: e[metric], value: e[metric], ts: new Date(e.date).getTime() }; });
     var minTs = pts[0].ts, maxTs = pts[pts.length - 1].ts;
     var tsRange = Math.max(1, maxTs - minTs);
     var weights = pts.map(function (p) { return p.weight; });
@@ -438,7 +479,7 @@
       svg.appendChild(line);
       var lbl = document.createElementNS(svgns, "text");
       lbl.setAttribute("x", padL - 6); lbl.setAttribute("y", gy + 3); lbl.setAttribute("text-anchor", "end");
-      lbl.textContent = gw.toFixed(0);
+      lbl.textContent = metric === "weight" ? gw.toFixed(0) : gw.toFixed(1);
       svg.appendChild(lbl);
     }
 
@@ -459,7 +500,7 @@
     var path = document.createElementNS(svgns, "path");
     path.setAttribute("d", d);
     path.setAttribute("fill", "none");
-    path.setAttribute("stroke", "#2F6F62");
+    path.setAttribute("stroke", MM.color);
     path.setAttribute("stroke-width", "2.5");
     path.setAttribute("stroke-linecap", "round");
     path.setAttribute("stroke-linejoin", "round");
@@ -482,7 +523,7 @@
       var circle = document.createElementNS(svgns, "circle");
       circle.setAttribute("cx", x(p.ts)); circle.setAttribute("cy", y(p.weight));
       circle.setAttribute("r", isActive ? 6 : 4);
-      circle.setAttribute("fill", isActive ? "#C99A3E" : "#2F6F62");
+      circle.setAttribute("fill", isActive ? "#1E2A22" : MM.color);
       circle.setAttribute("stroke", "#fff"); circle.setAttribute("stroke-width", "2");
       circle.style.cursor = "pointer";
       circle.addEventListener("click", function () {
@@ -527,9 +568,9 @@
   }
 
   function toCSV(entries) {
-    var rows = [["日期", "體重(kg)", "BMI"]];
+    var rows = [["日期", "體重(kg)", "BMI", "體脂率(%)", "骨骼肌(kg)"]];
     entries.forEach(function (e) {
-      rows.push([e.date, e.weight.toFixed(1), bmiOf(e.weight).toFixed(1)]);
+      rows.push([e.date, e.weight.toFixed(1), bmiOf(e.weight).toFixed(1), hasVal(e.bodyFat) ? e.bodyFat.toFixed(1) : "", hasVal(e.muscle) ? e.muscle.toFixed(1) : ""]);
     });
     return rows.map(function (r) { return r.join(","); }).join("\n");
   }
@@ -560,6 +601,11 @@
     weightField.addEventListener("input", function (e) { state.weightInput = e.target.value; updateBmiPreview(); });
     updateBmiPreview();
 
+    var fatField = el("input", { type: "number", step: "0.1", placeholder: "例如 24.5（可不填）", value: state.fatInput });
+    fatField.addEventListener("input", function (e) { state.fatInput = e.target.value; });
+    var muscleField = el("input", { type: "number", step: "0.1", placeholder: "例如 35.2（可不填）", value: state.muscleInput });
+    muscleField.addEventListener("input", function (e) { state.muscleInput = e.target.value; });
+
     var statusEl = el("div", { class: "status-msg" }, [state.status]);
 
     var saveBtn = el("button", { class: "primary-btn" }, ["儲存紀錄"]);
@@ -571,12 +617,19 @@
         render();
         return;
       }
+      var fat = parseFloat(fatField.value), mus = parseFloat(muscleField.value);
+      var old = sorted.filter(function (e) { return e.date === d; })[0] || {};
+      var rec = { date: d, weight: w };
+      var nf = !isNaN(fat) && fat > 0 ? fat : old.bodyFat;
+      var nm = !isNaN(mus) && mus > 0 ? mus : old.muscle;
+      if (hasVal(nf)) rec.bodyFat = nf;
+      if (hasVal(nm)) rec.muscle = nm;
       var next = sorted.filter(function (e) { return e.date !== d; });
-      next.push({ date: d, weight: w });
+      next.push(rec);
       state.entries = next;
       saveEntries(next);
-      state.weightInput = "";
-      state.status = "已記錄 " + fmtDate(d) + "：" + w + " kg";
+      state.weightInput = ""; state.fatInput = ""; state.muscleInput = "";
+      state.status = "已記錄 " + fmtDate(d) + "：" + w + " kg" + (hasVal(rec.bodyFat) ? "、體脂 " + rec.bodyFat + "%" : "") + (hasVal(rec.muscle) ? "、骨骼肌 " + rec.muscle + " kg" : "");
       render();
     });
 
@@ -584,6 +637,8 @@
       el("div", { style: "margin-bottom:12px;" }, [el("label", { class: "field-label" }, ["日期"]), dateField]),
       el("div", { style: "margin-bottom:12px;" }, [el("label", { class: "field-label" }, ["體重 (kg)"]), weightField]),
       bmiPreview,
+      el("div", { style: "margin-bottom:12px;" }, [el("label", { class: "field-label" }, ["體脂率 (%)"]), fatField]),
+      el("div", { style: "margin-bottom:12px;" }, [el("label", { class: "field-label" }, ["骨骼肌重量 (kg)"]), muscleField]),
       saveBtn,
       state.status ? statusEl : null
     ]);
@@ -599,7 +654,7 @@
       });
       historyCard.appendChild(el("div", { class: "history-row" }, [
         el("span", { style: "color:var(--muted);" }, [e.date.replace(/-/g, "/")]),
-        el("span", { style: "font-weight:500;" }, [e.weight.toFixed(1) + " kg"]),
+        el("span", { style: "font-weight:500;font-size:13px;" }, [e.weight.toFixed(1) + " kg" + (hasVal(e.bodyFat) ? " · " + e.bodyFat.toFixed(1) + "%" : "") + (hasVal(e.muscle) ? " · 肌 " + e.muscle.toFixed(1) : "")]),
         delBtn
       ]));
     });
